@@ -20,8 +20,25 @@ class TreeRenderer:
     def render(self, metrics: BootMetrics, max_depth: int = 5) -> str:
         """Render boot metrics as tree"""
         lines = []
+        lines.append("Boot Dependency Tree:\n")
         
-        # Group by severity
+        # Find root service (systemd.special)
+        root = next((s for s in metrics.services 
+                    if s.name == 'systemd.special'), None)
+        
+        if root:
+            self.visited = set()
+            tree_str = self._render_node_recursive(root, metrics, 0, max_depth)
+            lines.append(tree_str)
+        else:
+            # Fallback: show by severity
+            return self._render_by_severity(metrics)
+        
+        return "\n".join(lines)
+
+    def _render_by_severity(self, metrics: BootMetrics) -> str:
+        """Fallback: Group by severity"""
+        lines = []
         by_severity = {
             'CRITICAL': [],
             'ORANGE': [],
@@ -32,7 +49,6 @@ class TreeRenderer:
         for service in metrics.services:
             by_severity[service.severity].append(service)
         
-        # Render each severity group
         for severity in ['CRITICAL', 'ORANGE', 'WARN']:
             if by_severity[severity]:
                 lines.append(f"\n{severity} Services ({len(by_severity[severity])}):")
@@ -74,9 +90,10 @@ class TreeRenderer:
     
     def _render_node_recursive(self, service: ProcessedService,
                               metrics: BootMetrics,
-                              depth: int, is_last: bool = True) -> str:
+                              depth: int, max_depth: int = 5,
+                              is_last: bool = True) -> str:
         """Recursively render node and children"""
-        if service.name in self.visited or depth > 5:
+        if service.name in self.visited or depth > max_depth:
             return ""
         
         self.visited.add(service.name)
@@ -95,7 +112,7 @@ class TreeRenderer:
         else:
             color = reset = ""
         
-        indent = "  " * (depth + 1)
+        indent = "  " * depth
         time_str = f"({service.duration_ms/1000:.2f}s)"
         lines.append(f"{indent}{prefix}{color}{service.name}{reset} {time_str}")
         
@@ -106,7 +123,7 @@ class TreeRenderer:
         for i, child in enumerate(children):
             is_last_child = (i == len(children) - 1)
             child_lines = self._render_node_recursive(
-                child, metrics, depth + 1, is_last_child
+                child, metrics, depth + 1, max_depth, is_last_child
             )
             if child_lines:
                 lines.append(child_lines)
