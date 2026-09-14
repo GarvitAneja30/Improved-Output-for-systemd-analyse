@@ -18,21 +18,24 @@ class TreeRenderer:
         self.visited = set()
     
     def render(self, metrics: BootMetrics, max_depth: int = 5) -> str:
-        """Render boot metrics as tree"""
+        """Render boot metrics as dependency tree"""
         lines = []
         lines.append("Boot Dependency Tree:\n")
         
-        # Find root service (systemd.special)
+        # Find root service
         root = next((s for s in metrics.services 
-                    if s.name == 'systemd.special'), None)
+                    if s.name in ['systemd.special', 'system.slice']), None)
         
         if root:
             self.visited = set()
             tree_str = self._render_node_recursive(root, metrics, 0, max_depth)
             lines.append(tree_str)
         else:
-            # Fallback: show by severity
-            return self._render_by_severity(metrics)
+            # Show critical path instead
+            lines.append("Critical Path Services:")
+            for svc in metrics.services:
+                if svc.severity in ['CRITICAL', 'ORANGE']:
+                    lines.append(self._format_node(svc, indent=2))
         
         return "\n".join(lines)
 
@@ -84,7 +87,7 @@ class TreeRenderer:
         
         if root:
             self.visited = set()
-            lines.append(self._render_node_recursive(root, metrics, 0))
+            lines.append(self._render_node_recursive(root, metrics, 0, 5))
         
         return "\n".join(lines)
     
@@ -116,7 +119,7 @@ class TreeRenderer:
         time_str = f"({service.duration_ms/1000:.2f}s)"
         lines.append(f"{indent}{prefix}{color}{service.name}{reset} {time_str}")
         
-        # Render children
+        # Render children (services that depend on this one)
         children = [s for s in metrics.services 
                    if service.name in s.dependencies]
         

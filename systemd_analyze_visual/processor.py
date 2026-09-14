@@ -15,6 +15,16 @@ def process_timings(raw_timings: List[ServiceTiming]) -> BootMetrics:
     # Calculate total boot time
     if not raw_timings:
         return BootMetrics(0, 0, 0, [], [])
+
+    # SANITY CHECK: Remove unrealistic timings
+    max_realistic_time = 300000  # 5 minutes max
+    raw_timings = [s for s in raw_timings 
+                  if s.duration_ms < max_realistic_time]
+    
+    if not raw_timings:
+        print("Warning: No realistic timing data found", file=sys.stderr)
+        return BootMetrics(0, 0, 0, [], [])
+
     
     total_ms = max(s.start_time_ms + s.duration_ms 
                    for s in raw_timings if s.start_time_ms > 0)
