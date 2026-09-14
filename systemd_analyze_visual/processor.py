@@ -8,8 +8,85 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import List, Dict, Set
 from systemd_analyze_visual.models import ServiceTiming, ProcessedService, BootMetrics
+from systemd_analyze_visual.critical_path import get_critical_chain, identify_critical_path_services, mark_parallel_services
 
 def process_timings(raw_timings: List[ServiceTiming]) -> BootMetrics:
+    """Process raw timings into meaningful data"""
+    
+    if not raw_timings:
+        return BootMetrics(0, 0, 0, [], [])
+    
+    # Get critical chain data
+    chain_output = get_critical_chain()
+    critical_services = identify_critical_path_services(chain_output)
+    critical_services = mark_parallel_services(critical_services, raw_timings)
+    
+    # Calculate total boot time from first service
+    total_ms = max(s.start_time_ms + s.duration_ms 
+                   for s in raw_timings if s.start_time_ms > 0)
+    
+    # Process each service
+    processed = []
+    for timing in raw_timings:
+        # Check if service is on critical path
+        critical_info = critical_services.get(timing.name, {})
+        is_critical = critical_info.get('on_critical_path', False)
+        blocks_boot = critical_info.get('blocks_boot', False)
+        
+        # Recalculate severity based on whether it blocks boot
+        if not blocks_boot:
+            # Non-blocking services get lower severity
+            severity = "OK"
+        else:
+            # Critical path services: use duration
+            if timing.duration_ms < 100:
+                severity = "OK"
+            elif timing.duration_ms < 1000:
+                severity = "WARN"
+            elif timing.duration_ms < 5000:
+                severity = "ORANGE"
+            else:
+                severity = "CRITICAL"
+        
+        # Calculate blocking (how many services depend on this)
+        block_count = calculate_block_count(timing, raw_timings)
+        
+        # Calculate parallel count
+        parallel_count = calculate_parallel_count(timing, raw_timings)
+        
+        # Calculate depth
+        depth = calculate_depth(timing, raw_timings)
+        
+        proc_service = ProcessedService(
+            name=timing.name,
+            duration_ms=timing.duration_ms,
+            start_time_ms=timing.start_time_ms,
+            severity=severity,
+            block_count=block_count,
+            parallel_count=parallel_count,
+            depth=depth,
+            dependencies=timing.dependencies,
+            reverse_deps=timing.wanted_by
+        )
+        processed.append(proc_service)
+    
+    # Find critical path
+    critical_path = list(critical_services.keys())
+    
+    # Estimate kernel time
+    kernel_ms = min((s.start_time_ms for s in raw_timings 
+                    if s.start_time_ms > 0), default=0)
+    
+    metrics = BootMetrics(
+        total_boot_ms=int(total_ms),
+        kernel_time_ms=int(kernel_ms),
+        userspace_time_ms=int(total_ms - kernel_ms),
+        services=sorted(processed, key=lambda x: x.duration_ms, 
+                       reverse=True),
+        critical_path=critical_path
+    )
+    
+    return metrics
     """Process raw timings into meaningful data"""
     
     # Calculate total boot time

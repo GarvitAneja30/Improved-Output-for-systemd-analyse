@@ -39,6 +39,9 @@ class TableRenderer:
         """Format single service row"""
         time_str = f"{service.duration_ms/1000:.2f}s"
         
+        # Add critical path indicator
+        critical_marker = "🔴" if service.severity == "CRITICAL" else " "
+        
         # Color the severity
         if self.use_colors:
             color = Colors.severity_color(service.severity)
@@ -46,7 +49,7 @@ class TableRenderer:
         else:
             severity_str = service.severity
         
-        return f"{service.name:<40} {time_str:>10}s  {severity_str}"
+        return f"{critical_marker} {service.name:<40} {time_str:>10}s  {severity_str}"
     
     def render_summary(self, metrics: BootMetrics) -> str:
         """Render boot summary"""
@@ -56,9 +59,17 @@ class TableRenderer:
         lines.append(f"Kernel time: {metrics.kernel_time_ms/1000:.2f}s")
         lines.append(f"Userspace time: {metrics.userspace_time_ms/1000:.2f}s")
         lines.append(f"Services analyzed: {len(metrics.services)}")
-        lines.append(f"Critical bottlenecks: {metrics.critical_count}")
-        lines.append(f"Slow services: {metrics.warning_count}")
+        lines.append(f"Critical path services: {len(metrics.critical_path)}")
+        lines.append(f"Actual bottlenecks: {metrics.critical_count}")
         lines.append("="*75)
+        
+        if metrics.critical_path:
+            lines.append("\nCritical Path (services that block boot):")
+            for svc_name in metrics.critical_path[:10]:
+                svc = next((s for s in metrics.services if s.name == svc_name), None)
+                if svc:
+                    lines.append(f"  → {svc.name} ({svc.duration_ms/1000:.2f}s)")
+        
         return "\n".join(lines)
     
     def render_bottlenecks(self, metrics: BootMetrics) -> str:
