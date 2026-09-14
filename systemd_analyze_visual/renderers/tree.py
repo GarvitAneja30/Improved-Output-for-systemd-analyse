@@ -1,79 +1,114 @@
 """
-Table format renderer
+Tree format renderer
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import List
+from typing import List, Set
 from systemd_analyze_visual.models import ProcessedService, BootMetrics
-from systemd_analyze_visual.renderers.colors import Colors
+from systemd_analyze_visual.renderers.colors import Colors, TreeChars
 
-class TableRenderer:
-    """Render services as formatted table"""
+class TreeRenderer:
+    """Render services as dependency tree"""
     
     def __init__(self, use_colors: bool = True):
         self.use_colors = use_colors
+        self.visited = set()
     
-    def render(self, metrics: BootMetrics, limit: int = 20) -> str:
-        """Render boot metrics as table"""
+    def render(self, metrics: BootMetrics, max_depth: int = 5) -> str:
+        """Render boot metrics as tree"""
         lines = []
         
-        # Header
-        lines.append(self._format_header())
-        lines.append("─" * 75)
+        # Group by severity
+        by_severity = {
+            'CRITICAL': [],
+            'ORANGE': [],
+            'WARN': [],
+            'OK': []
+        }
         
-        # Services (limit to top N)
-        services_to_show = metrics.services[:limit]
-        for service in services_to_show:
-            lines.append(self._format_row(service))
+        for service in metrics.services:
+            by_severity[service.severity].append(service)
+        
+        # Render each severity group
+        for severity in ['CRITICAL', 'ORANGE', 'WARN']:
+            if by_severity[severity]:
+                lines.append(f"\n{severity} Services ({len(by_severity[severity])}):")
+                for svc in by_severity[severity][:10]:
+                    lines.append(self._format_node(svc, indent=2))
         
         return "\n".join(lines)
     
-    def _format_header(self) -> str:
-        """Format table header"""
-        return f"{'SERVICE':<40} {'DURATION':<12} {'SEVERITY':<15}"
-    
-    def _format_row(self, service: ProcessedService) -> str:
-        """Format single service row"""
-        time_str = f"{service.duration_ms/1000:.2f}s"
+    def _format_node(self, service: ProcessedService, 
+                    indent: int = 0) -> str:
+        """Format single node in tree"""
+        prefix = " " * indent
         
-        # Color the severity
         if self.use_colors:
             color = Colors.severity_color(service.severity)
-            severity_str = f"{color}{service.severity:<10}{Colors.RESET}"
+            reset = Colors.RESET
         else:
-            severity_str = service.severity
+            color = reset = ""
         
-        return f"{service.name:<40} {time_str:>10}s  {severity_str}"
+        time_str = f"({service.duration_ms/1000:.2f}s)"
+        
+        return f"{prefix}{color}● {service.name}{reset} {time_str}"
     
-    def render_summary(self, metrics: BootMetrics) -> str:
-        """Render boot summary"""
+    def render_dependency_tree(self, metrics: BootMetrics) -> str:
+        """Render full dependency tree"""
         lines = []
-        lines.append("\n" + "="*75)
-        lines.append(f"Total boot time: {metrics.total_boot_s:.2f}s")
-        lines.append(f"Kernel time: {metrics.kernel_time_ms/1000:.2f}s")
-        lines.append(f"Userspace time: {metrics.userspace_time_ms/1000:.2f}s")
-        lines.append(f"Services analyzed: {len(metrics.services)}")
-        lines.append(f"Critical bottlenecks: {metrics.critical_count}")
-        lines.append(f"Slow services: {metrics.warning_count}")
-        lines.append("="*75)
+        lines.append("Boot dependency tree:")
+        lines.append("")
+        
+        # Find root (systemd.special or first service)
+        root = next((s for s in metrics.services 
+                    if s.name == 'systemd.special'), None)
+        
+        if root:
+            self.visited = set()
+            lines.append(self._render_node_recursive(root, metrics, 0))
+        
         return "\n".join(lines)
     
-    def render_bottlenecks(self, metrics: BootMetrics) -> str:
-        """Show main bottlenecks"""
-        bottlenecks = [s for s in metrics.services 
-                      if s.severity in ['ORANGE', 'CRITICAL']]
-        
-        if not bottlenecks:
+    def _render_node_recursive(self, service: ProcessedService,
+                              metrics: BootMetrics,
+                              depth: int, is_last: bool = True) -> str:
+        """Recursively render node and children"""
+        if service.name in self.visited or depth > 5:
             return ""
         
+        self.visited.add(service.name)
+        
         lines = []
-        lines.append("\nMain bottlenecks:")
-        for svc in bottlenecks[:5]:
-            color = Colors.severity_color(svc.severity) if self.use_colors else ""
-            reset = Colors.RESET if self.use_colors else ""
-            lines.append(f"  {color}● {svc.name} ({svc.duration_ms/1000:.2f}s){reset}")
+        
+        # Format current node
+        if depth == 0:
+            prefix = ""
+        else:
+            prefix = (TreeChars.LAST if is_last else TreeChars.BRANCH)
+        
+        if self.use_colors:
+            color = Colors.severity_color(service.severity)
+            reset = Colors.RESET
+        else:
+            color = reset = ""
+        
+        indent = "  " * (depth + 1)
+        time_str = f"({service.duration_ms/1000:.2f}s)"
+        lines.append(f"{indent}{prefix}{color}{service.name}{reset} {time_str}")
+        
+        # Render children
+        children = [s for s in metrics.services 
+                   if service.name in s.dependencies]
+        
+        for i, child in enumerate(children):
+            is_last_child = (i == len(children) - 1)
+            child_lines = self._render_node_recursive(
+                child, metrics, depth + 1, is_last_child
+            )
+            if child_lines:
+                lines.append(child_lines)
         
         return "\n".join(lines)
