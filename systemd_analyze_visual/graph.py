@@ -4,7 +4,7 @@ Dependency graph builder
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from typing import List, Dict, Set
 from systemd_analyze_visual.models import ServiceTiming, ServiceNode
