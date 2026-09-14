@@ -6,11 +6,12 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
-from .collector import collect_timings
-from .processor import process_timings
-from .filters import apply_filters, FilterCriteria, sort_services
-from .renderers import TableRenderer, TreeRenderer, LegacyRenderer
-from .renderers.colors import Colors
+
+from systemd_analyze_visual.collector import collect_timings
+from systemd_analyze_visual.processor import process_timings
+from systemd_analyze_visual.filters import apply_filters, FilterCriteria, sort_services
+from systemd_analyze_visual.renderers import TableRenderer, TreeRenderer, LegacyRenderer
+from systemd_analyze_visual.renderers.colors import Colors
 
 def create_parser() -> argparse.ArgumentParser:
     """Create argument parser"""
