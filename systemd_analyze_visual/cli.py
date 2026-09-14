@@ -3,6 +3,8 @@ Command-line interface and argument parsing
 """
 
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 from .collector import collect_timings
 from .processor import process_timings
