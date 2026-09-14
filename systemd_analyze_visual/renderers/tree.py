@@ -2,9 +2,13 @@
 Table format renderer
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from typing import List
-from ..models import ProcessedService, BootMetrics
-from .colors import Colors
+from systemd_analyze_visual.models import ProcessedService, BootMetrics
+from systemd_analyze_visual.renderers.colors import Colors
 
 class TableRenderer:
     """Render services as formatted table"""

@@ -2,8 +2,12 @@
 Legacy blame format (backward compatible)
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from typing import List
-from ..models import ProcessedService
+from systemd_analyze_visual.models import ProcessedService
 
 class LegacyRenderer:
     """Render in original systemd-analyze blame format"""

@@ -2,8 +2,12 @@
 Data processing and aggregation
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from typing import List, Dict, Set
-from .models import ServiceTiming, ProcessedService, BootMetrics
+from systemd_analyze_visual.models import ServiceTiming, ProcessedService, BootMetrics
 
 def process_timings(raw_timings: List[ServiceTiming]) -> BootMetrics:
     """Process raw timings into meaningful data"""
