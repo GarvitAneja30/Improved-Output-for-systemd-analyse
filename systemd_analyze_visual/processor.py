@@ -122,30 +122,34 @@ def find_critical_path(services: List[ServiceTiming]) -> List[str]:
     if not services:
         return []
     
-    # Critical path = longest chain of sequential services
-    # Simplified: just find longest dependency chain
-    
     critical = []
     max_time = 0
     
     for service in services:
-        path_time = calculate_path_time(service, services)
+        path_time = calculate_path_time(service, services, set())  # Pass empty set
         if path_time > max_time:
             max_time = path_time
             critical = [service.name]
     
     return critical
 
-
 def calculate_path_time(service: ServiceTiming,
-                       all_services: List[ServiceTiming]) -> int:
+                       all_services: List[ServiceTiming],
+                       visited: Set = None) -> int:
     """Calculate total time for dependency chain"""
+    if visited is None:
+        visited = set()
+    
+    if service.name in visited:
+        return 0  # Already counted, avoid infinite recursion
+    
+    visited.add(service.name)
     total = service.duration_ms
     
     for dep_name in service.dependencies:
         dep = next((s for s in all_services 
                    if s.name == dep_name), None)
-        if dep:
-            total += calculate_path_time(dep, all_services)
+        if dep and dep.name not in visited:
+            total += calculate_path_time(dep, all_services, visited)
     
     return total
