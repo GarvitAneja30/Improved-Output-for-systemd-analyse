@@ -1,2 +1,1 @@
 dbus-python>=1.2.16
-systemd>=234
