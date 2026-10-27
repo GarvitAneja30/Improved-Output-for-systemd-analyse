@@ -28,6 +28,24 @@ def get_manager_interface(bus):
         return None
 
 
+def activation_window_us(props):
+    """Return (start_us, duration_us) the way `systemd-analyze blame` does.
+
+    D-Bus *Monotonic timestamps are in MICROseconds.
+    """
+    activating = int(props.get('InactiveExitTimestampMonotonic', 0))   # began starting
+    activated = int(props.get('ActiveEnterTimestampMonotonic', 0))     # became active
+    deactivated = int(props.get('InactiveEnterTimestampMonotonic', 0)) # went inactive again
+
+    if activating == 0:
+        return 0, 0
+    if activated >= activating:
+        return activating, activated - activating
+    if deactivated >= activating:          # oneshot that already finished
+        return activating, deactivated - activating
+    return activating, 0
+
+
 def collect_timings() -> List[ServiceTiming]:
     """Collect boot timing data from D-Bus"""
     bus = get_dbus_connection()
@@ -47,7 +65,7 @@ def collect_timings() -> List[ServiceTiming]:
             name, desc, load_state, active_state, sub_state, \
             following, obj_path, job_type, job_path, job_timeout = unit_info
             
-            if not (name.endswith('.service') or name.endswith('.target')):
+            if not name.endswith(('.service', '.target', '.device')):
                 continue
             
             try:
@@ -59,15 +77,11 @@ def collect_timings() -> List[ServiceTiming]:
                 
                 props = unit_props.GetAll('org.freedesktop.systemd1.Unit')
                 
-                # Get timing - use InactiveExitTimestamp instead
-                start_time = props.get('InactiveExitTimestampMonotonic', 0)
-                finish_time = props.get('ActiveEnterTimestampMonotonic', 0)
+                start_us, duration_us = activation_window_us(props)
                 
-                # If both are 0, service hasn't started
-                if start_time == 0 and finish_time == 0:
+                # Never started this boot
+                if start_us == 0:
                     continue
-                
-                duration = max(0, finish_time - start_time)
                 
                 # Get FULL dependency info
                 requires = props.get('Requires', [])
@@ -80,8 +94,8 @@ def collect_timings() -> List[ServiceTiming]:
                 
                 service = ServiceTiming(
                     name=name,
-                    duration_ms=int(duration),
-                    start_time_ms=int(start_time),
+                    duration_ms=duration_us // 1000,
+                    start_time_ms=start_us // 1000,
                     state=active_state,
                     dependencies=dependencies,
                     wanted_by=wanted_by

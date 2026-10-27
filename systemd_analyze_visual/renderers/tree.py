@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from typing import List, Set
 from systemd_analyze_visual.models import ProcessedService, BootMetrics
 from systemd_analyze_visual.renderers.colors import Colors, TreeChars
+from systemd_analyze_visual.utils import format_duration
 
 class TreeRenderer:
     """Render services as dependency tree"""
@@ -71,7 +72,7 @@ class TreeRenderer:
         else:
             color = reset = ""
         
-        time_str = f"({service.duration_ms/1000:.2f}s)"
+        time_str = f"({format_duration(service.duration_ms)})"
         
         return f"{prefix}{color}● {service.name}{reset} {time_str}"
     
@@ -116,7 +117,7 @@ class TreeRenderer:
             color = reset = ""
         
         indent = "  " * depth
-        time_str = f"({service.duration_ms/1000:.2f}s)"
+        time_str = f"({format_duration(service.duration_ms)})"
         lines.append(f"{indent}{prefix}{color}{service.name}{reset} {time_str}")
         
         # Render children (services that depend on this one)

@@ -2,15 +2,14 @@
 Utility functions
 """
 
-def format_duration(ms: int) -> str:
-    """Format milliseconds as human readable"""
-    if ms < 1000:
-        return f"{ms}ms"
-    elif ms < 60000:
-        return f"{ms/1000:.2f}s"
-    else:
-        minutes = ms / 60000
-        return f"{minutes:.2f}m"
+def format_duration(ms: float) -> str:
+    """Format milliseconds like systemd-analyze: 1min 3.200s / 4.978s / 988ms"""
+    if ms >= 60000:
+        minutes = int(ms // 60000)
+        return f"{minutes}min {(ms - minutes * 60000) / 1000:.3f}s"
+    if ms >= 1000:
+        return f"{ms / 1000:.3f}s"
+    return f"{int(ms)}ms"
 
 
 def format_duration_short(ms: int) -> str:

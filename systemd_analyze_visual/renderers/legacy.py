@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import List
 from systemd_analyze_visual.models import ProcessedService
+from systemd_analyze_visual.utils import format_duration
 
 class LegacyRenderer:
     """Render in original systemd-analyze blame format"""
@@ -17,13 +18,15 @@ class LegacyRenderer:
         """Render as blame list"""
         lines = []
         
-        # Sort by duration (descending)
-        sorted_services = sorted(services, 
-                                key=lambda x: x.duration_ms, 
+        # Like real blame: skip zero-time units, sort slowest first
+        sorted_services = sorted((x for x in services if x.duration_ms > 0),
+                                key=lambda x: x.duration_ms,
                                 reverse=True)
         
-        for service in sorted_services:
-            time_str = f"{service.duration_ms/1000:.1f}s"
-            lines.append(f"{time_str:>10}  {service.name}")
+        times = [format_duration(x.duration_ms) for x in sorted_services]
+        width = max((len(t) for t in times), default=0)
+        
+        for time_str, service in zip(times, sorted_services):
+            lines.append(f"{time_str:>{width}} {service.name}")
         
         return "\n".join(lines)

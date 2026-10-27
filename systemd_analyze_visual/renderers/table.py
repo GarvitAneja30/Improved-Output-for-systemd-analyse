@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from typing import List
 from systemd_analyze_visual.models import ProcessedService, BootMetrics
 from systemd_analyze_visual.renderers.colors import Colors
+from systemd_analyze_visual.utils import format_duration
 
 class TableRenderer:
     """Render services as formatted table"""
@@ -37,7 +38,7 @@ class TableRenderer:
     
     def _format_row(self, service: ProcessedService) -> str:
         """Format single service row"""
-        time_str = f"{service.duration_ms/1000:.2f}s"
+        time_str = format_duration(service.duration_ms)
         
         # Add critical path indicator
         critical_marker = "🔴" if service.severity == "CRITICAL" else " "
@@ -49,7 +50,7 @@ class TableRenderer:
         else:
             severity_str = service.severity
         
-        return f"{critical_marker} {service.name:<40} {time_str:>10}s  {severity_str}"
+        return f"{critical_marker} {service.name:<40} {time_str:>10}  {severity_str}"
     
     def render_summary(self, metrics: BootMetrics) -> str:
         """Render boot summary"""
@@ -68,7 +69,7 @@ class TableRenderer:
             for svc_name in metrics.critical_path[:10]:
                 svc = next((s for s in metrics.services if s.name == svc_name), None)
                 if svc:
-                    lines.append(f"  → {svc.name} ({svc.duration_ms/1000:.2f}s)")
+                    lines.append(f"  → {svc.name} ({format_duration(svc.duration_ms)})")
         
         return "\n".join(lines)
     
@@ -85,6 +86,6 @@ class TableRenderer:
         for svc in bottlenecks[:5]:
             color = Colors.severity_color(svc.severity) if self.use_colors else ""
             reset = Colors.RESET if self.use_colors else ""
-            lines.append(f"  {color}● {svc.name} ({svc.duration_ms/1000:.2f}s){reset}")
+            lines.append(f"  {color}● {svc.name} ({format_duration(svc.duration_ms)}){reset}")
         
         return "\n".join(lines)
